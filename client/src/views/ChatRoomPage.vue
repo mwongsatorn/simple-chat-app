@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import Chatbox from '@/components/Chatbox.vue'
 
 interface MessageInfo {
   sender: string
@@ -23,6 +24,7 @@ socket.addEventListener('message', (e) => {
 })
 
 function sendMessage() {
+  if (!message.value) return
   const sendingMessage = {
     message: message.value,
     sender: name.value
@@ -34,11 +36,18 @@ function sendMessage() {
 </script>
 
 <template>
-  <div class="mx-auto h-screen w-full max-w-7xl overflow-hidden bg-white">
-    <div class="h-[90%] w-full px-4 py-8">
+  <div class="mx-auto h-screen min-h-[480px] w-full max-w-7xl overflow-hidden bg-white">
+    <div class="h-full max-h-[90%] w-full overflow-y-auto px-4 py-8">
       <h1 class="text-center text-2xl font-bold">Welcome to the chatroom: {{ name }}</h1>
-      <div class="whitespace-pre-wrap break-words" v-for="(msg, index) in messages" :key="index">
-        <p>{{ msg.sender }} : {{ msg.message }}</p>
+      <div class="mt-8 space-y-4">
+        <Chatbox
+          :class="[name === msg.sender ? 'ml-auto' : null]"
+          :sender="msg.sender"
+          :message="msg.message"
+          v-for="(msg, index) in messages"
+          :key="index"
+        >
+        </Chatbox>
       </div>
     </div>
     <form @submit.prevent="sendMessage()" class="flex h-[10%] w-full">
