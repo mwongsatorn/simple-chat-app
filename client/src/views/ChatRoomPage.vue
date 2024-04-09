@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { throttle, debounce } from '@/helpers/execute'
 import Chatbox from '@/components/Chatbox.vue'
 
-interface MessageInfo {
+type MessageInfo = MessageSendingType | MessageTypeingType
+
+type MessageSendingType = {
+  type: 'Sending'
   sender: string
   message: string
 }
 
+type MessageTypeingType = {
+  type: 'Typing'
+}
+
 const name = ref(history.state.name)
+const isTyping = ref(false)
 const message = ref('')
-const messages = ref<MessageInfo[]>([])
+const messages = ref<MessageSendingType[]>([])
 
 const socket = new WebSocket('ws://localhost:8080')
 
@@ -19,13 +28,24 @@ socket.addEventListener('open', () => {
 
 socket.addEventListener('message', (e) => {
   const receivedMessagae: MessageInfo = JSON.parse(e.data)
-  messages.value.push(receivedMessagae)
-  console.log(messages.value)
+  switch (receivedMessagae.type) {
+    case 'Sending': {
+      isTyping.value = false
+      messages.value.push(receivedMessagae)
+      break
+    }
+    case 'Typing': {
+      isTyping.value = true
+      stopTyping()
+      break
+    }
+  }
 })
 
 function sendMessage() {
   if (!message.value) return
-  const sendingMessage = {
+  const sendingMessage: MessageInfo = {
+    type: 'Sending',
     message: message.value,
     sender: name.value
   }
@@ -33,6 +53,18 @@ function sendMessage() {
   socket.send(data)
   message.value = ''
 }
+
+const sendTypingSignal = throttle(() => {
+  const signal = {
+    type: 'Typing'
+  } as const
+  const data = JSON.stringify(signal)
+  socket.send(data)
+}, 1000)
+
+const stopTyping = debounce(() => {
+  isTyping.value = false
+}, 2000)
 </script>
 
 <template>
@@ -48,10 +80,16 @@ function sendMessage() {
           :key="index"
         >
         </Chatbox>
+        <div v-if="isTyping">Someone is typing</div>
       </div>
     </div>
     <form @submit.prevent="sendMessage()" class="flex h-[10%] w-full">
-      <textarea v-model="message" class="block w-full resize-none border-2 px-4 py-2" type="text" />
+      <textarea
+        @keydown="sendTypingSignal"
+        v-model="message"
+        class="block w-full resize-none border-2 px-4 py-2"
+        type="text"
+      />
       <button type="submit" class="border-2 bg-gray-100 px-4 py-2">Send</button>
     </form>
   </div>
