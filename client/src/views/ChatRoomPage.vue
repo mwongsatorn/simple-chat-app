@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import { throttle, debounce } from '@/helpers/execute'
 import Chatbox from '@/components/Chatbox.vue'
 
@@ -19,6 +19,7 @@ const name = ref(history.state.name)
 const isTyping = ref(false)
 const message = ref('')
 const messages = ref<MessageSendingType[]>([])
+const chatWindow = ref<HTMLElement | null>(null)
 
 const socket = new WebSocket('ws://localhost:8080')
 
@@ -26,16 +27,20 @@ socket.addEventListener('open', () => {
   console.log('Connect to the server')
 })
 
-socket.addEventListener('message', (e) => {
+socket.addEventListener('message', async (e) => {
   const receivedMessagae: MessageInfo = JSON.parse(e.data)
   switch (receivedMessagae.type) {
     case 'Sending': {
       isTyping.value = false
       messages.value.push(receivedMessagae)
+      await nextTick()
+      chatWindow.value!.scrollTop = chatWindow.value!.scrollHeight
       break
     }
     case 'Typing': {
       isTyping.value = true
+      await nextTick()
+      chatWindow.value!.scrollTop = chatWindow.value!.scrollHeight
       stopTyping()
       break
     }
@@ -68,24 +73,28 @@ const stopTyping = debounce(() => {
 </script>
 
 <template>
-  <div class="mx-auto h-screen min-h-[480px] w-full max-w-7xl overflow-hidden bg-white">
-    <div class="h-full max-h-[90%] w-full overflow-y-auto px-4 py-8">
+  <div class="mx-auto w-full max-w-7xl bg-white">
+    <div class="flex h-[calc(100vh-56px)] min-h-[480px] w-full flex-col overflow-hidden py-8">
       <h1 class="text-center text-2xl font-bold">Welcome to the chatroom: {{ name }}</h1>
-      <div class="mt-8 space-y-4">
-        <Chatbox
-          :class="[name === msg.sender ? 'ml-auto' : null]"
-          :sender="msg.sender"
-          :message="msg.message"
-          v-for="(msg, index) in messages"
-          :key="index"
-        >
-        </Chatbox>
-        <div v-if="isTyping">Someone is typing</div>
+      <div ref="chatWindow" class="mt-8 flex grow flex-col overflow-y-auto px-4 py-8">
+        <div class="mt-auto w-full space-y-4">
+          <Chatbox
+            :class="[name === msg.sender ? 'ml-auto' : null]"
+            :sender="msg.sender"
+            :message="msg.message"
+            v-for="(msg, index) in messages"
+            :key="index"
+          >
+          </Chatbox>
+          <div v-if="isTyping">Someone is typing</div>
+        </div>
       </div>
     </div>
-    <form @submit.prevent="sendMessage()" class="flex h-[10%] w-full">
+    <form @submit.prevent="sendMessage()" class="flex h-[56px] w-full">
       <textarea
+        autofocus
         @keydown="sendTypingSignal"
+        @keydown.enter.exact.prevent="sendMessage()"
         v-model="message"
         class="block w-full resize-none border-2 px-4 py-2"
         type="text"
